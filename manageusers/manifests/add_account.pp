@@ -2,13 +2,12 @@
 # be created  by puppet.
 #
 # Used to define/realize users on Puppet-managed systems
-#
+# call the manageusers class for each new users
 
 class manageusers::add_account() { 
 
-#    manageusers::create_account {'jdoe@vbg-puppet-c1.int.prnw.net':
+# A test account... use this format to create your user account.
   manageusers::create_account {'jdoe':
- #   user	    => 'jdoe',
     uid             =>  1010,
     name            =>  'John Doe',
     shell           =>  '/bin/bash',
