@@ -42,7 +42,7 @@ puppetConf() {
 	factpath=$vardir/lib/facter
 
 	[agent]
-	server = vbg-puppet-m1.int.prnw.net
+	server = puppetmaster
 EOF
 
 }

@@ -7,6 +7,8 @@ class puppet-add {
 	file { 'puppet-add':
 	    path     => '/bin/puppet-add',
 	    ensure   => file,
+	    owner    => root,
+	    group    => root,
 	    mode     => 0755,
  	    source   => 'puppet:///modules/puppet-ad'/puppet-add',
 	    subscribe => File['/bin/puppet-add'],                                                     
