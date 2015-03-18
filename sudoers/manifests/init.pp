@@ -1,7 +1,9 @@
 # This module handles the creation of the sudoers file
 # edit the file in ..modules/sudoers/files/sudoers to 
 # make system wide changes
-
+# This class ensures that the sudo package is installed on hosts
+# # and the sudoers file is maintained with the template found in
+# # /etc/puppet/environments/production/modules/sudo/etc/sudoers
 # devtlops 2015
 
 class sudoers {

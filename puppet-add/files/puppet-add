@@ -1,0 +1,78 @@
+#!/bin/bash
+
+if [ $EUID != 0 ]; then
+	echo "You need to be member of the ADMIN group to run this command!"
+	echo " "
+	echo "Exiting ..."
+	exit 1
+fi
+
+
+# Lock the version of puppet to version 3.7*
+
+lockVersion() {
+	ver=$(puppet help | tail -n 1)
+        compared="Puppet v3.7.4"
+	
+	if [[ $ver = "$compared" ]]; then
+        	cat <<'EOF'> /etc/apt/preferences.d/00-puppet.pref
+		# /etc/apt/preferences.d/00-puppet.pref
+		Package: puppet puppet-common puppetmaster-passenger
+		Pin: version 3.7*
+		Pin-Priority: 501
+		
+EOF
+
+	else
+        	echo "Warning: Version Conflict!"
+		echo "PuppetMaster cannot manage latest version $ver"
+	fi
+
+}
+
+# this part configures the puppet.conf file for agent nodes
+puppetConf() {
+	echo "Configuring /etc/puppet/puppet.conf"
+	cat <<'EOF'> /etc/puppet/puppet.conf
+	[main]
+	logdir=/var/log/puppet
+	vardir=/var/lib/puppet
+	ssldir=/var/lib/puppet/ssl
+	rundir=/var/run/puppet
+	factpath=$vardir/lib/facter
+
+	[agent]
+	server = vbg-puppet-m1.int.prnw.net
+EOF
+
+}
+
+
+# downloads the puppet package for Ubuntu 14.04 trusty-tahr
+cd ~; wget https://apt.puppetlabs.com/puppetlabs-release-trusty.deb
+
+# installs the package and configure it to start with reboot
+# by editing the /etc/default/puppet file
+if [ $? -eq 0 ]; then
+        echo -e "Installing the puppet packages! \n"
+        sudo dpkg -i puppetlabs-release-trusty.deb
+        sudo apt-get update
+        sudo apt-get -y install puppet
+        sleep 2
+        echo -e "Configuring puppet to start with reboot..."
+	echo "Editing /etc/default/puppet ..."
+        sudo sed -in -e s/START=no/START=yes/g /etc/default/puppet
+        sudo rm /etc/default/puppetn
+
+	# calls the lockversion function
+	lockVersion
+	# Calls the puppetConf function
+	puppetConf
+	if [ $? -eq 0 ]; then
+		echo "Starting Puppet ... " 
+		sudo service puppet start
+        	exit 0
+	else
+		echo "Alert: Something went wrong during configuratin."
+	fi
+fi
