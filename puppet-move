@@ -1,0 +1,165 @@
+#!/bin/bash
+# This script is used to sync puppet modules across environments. 
+# The direction is from  development -> testing -> production
+#
+# The scripts also tests to make sure that the modules are corr-
+# ect before attempting to synchronize them.
+# 
+# Any incorrect modules should either be fixed or moved out of 
+# the puppet environment.
+#
+# It only runs on the puppetmaster and should be run when in the 
+# following directories:
+# /etc/puppet/environments/development and /etc/puppet/environments/testing
+# when called from development it syncs to the testing environment and lik-
+# ewise when called from testing, it syncs to the production environment. 
+
+# devtlops 2015.
+
+
+loc="/home/devtlops/environments/"
+#locdev=`/etc/puppet/environments/development`
+#loctest=`/etc/puppet/environments/testing`
+#locprod=`/etc/puppet/environments/production`
+
+# ensure administrative rights.
+if [ $EUID != 0 ]; then
+	echo "WARNING: You need to be root to run this command"
+	echo "sudo $0"
+	exit 1
+fi
+
+# Checks for the right host. This script can only be run on the
+# puppet master.
+
+myhost="$(hostname -f)"
+if [ $myhost != "vbg-puppet-m1.int.prnw.net" ]; then
+	echo "WARNING: This command can only be run on the Puppetmaster!"
+	exit 1
+fi
+
+#
+testModules () {
+	tmp="$(mktemp /tmp/ppt.XXX)" 		# make a temp file
+	counterr=0				# error counter
+	listerr=()
+
+	IFS=$'\n'       # make newlines the only separator
+	set -f          # disable globbing
+
+	if [ $PWD == "/etc/puppet/environments/development" ]; then	# checks your current working directory
+
+		# -n is dry run. it shows what will be moved without actually moving it. stores the out-
+		# put in the tmp file.
+		
+		rsync -anv /etc/puppet/environments/development/modules/ /etc/puppet/environments/testing/modules/ > $tmp		
+		initpp="$(cat $tmp | grep -w init.pp)"		# stores the content of tmp as a varible
+		for i in $initpp; do
+			echo "PROCESSING: $i"
+			sudo puppet apply --noop modules/$i
+			if [[ $? != 0 ]]; then
+				listerr+=($i)
+				((counterr++))
+			fi
+		done
+		# checking for numbers of modules with errors
+		
+		if [[ $counterr != 0 ]]; then
+                        echo "WARNING: There are $counterr errors in the modules in this files."
+                        for files in ${listerr[@]}; do
+                                echo "ERROR: $files"
+                        done
+			return 1
+                else
+                        echo "OK: There are no errors in the modules "
+			return 0
+                fi
+
+
+	elif [ $PWD == "/etc/puppet/environments/testing" ]; then	# checks your current working directory
+
+		# -n is dry run. it shows what will be moved without actually moving it. stores the out-
+		# put in the tmp file.
+		
+		rsync -anv /etc/puppet/environments/testing/modules/ /etc/puppet/environments/production/modules/ > $tmp		
+		initpp="$(cat $tmp | grep -w init.pp)"		# stores the content of tmp as a varible
+		for i in $initpp; do
+			echo "PROCESSING: $i"
+			sudo puppet apply --noop modules/$i
+			if [[ $? != 0 ]]; then
+				listerr+=($i)  		# appends fail runs to the listerr list.
+				((counterr++))
+			fi
+		done
+		# checking for numbers of modules with errors
+		
+		if [[ $counterr != 0 ]]; then
+                        echo "WARNING: There are $counterr errors in the modules in this files."
+
+                        for files in ${listerr[@]}; do		# lists every element in the list
+                                echo "ERROR: $files"
+                        done
+			return 1
+                else
+                        echo "OK: There are no errors in the modules "
+			return 0
+                fi
+
+	else 
+		echo "Incorrect location!"
+	fi	
+	unset IFS       # setting IFS to default behaviour
+	rm $tmp
+}
+
+
+
+if [ $PWD == "/etc/puppet/environments/development" ]; then
+	read -p "Where do you want to sync to [testing]: " choice
+	case $choice in
+		testing)
+		testModules
+		echo "I AM HERE !!!!!!!!!!!!!!!!!!"
+		if [[ $? = 0 ]]; then
+			rsync -av /etc/puppet/environments/development/modules/ /etc/puppet/environments/testing/modules/
+			if [ $? = 0 ]; then
+				echo "OK: /etc/puppet/environments/testing/modules is now updated."
+			else
+				echo "ERROR: Updates  not moved to /etc/puppet/environments/testing/modules."
+			fi
+		else
+			echo "NOTICE: Fix the the errors in the modules or move it away from puppet environment"
+			echo "NOTICE: before attempting to sync the files."
+		fi
+		;;
+		* )
+		echo "NOTICE: You need to push the changes to the TESTING environment first."
+	esac
+
+
+elif [ $PWD == "/etc/puppet/environments/testing" ]; then
+	read -p "Where do you want to sync to [production]: " choice
+	case $choice in
+		production)
+		testModules
+                if [[ $? = 0 ]]; then
+			rsync -av /etc/puppet/environments/testing/modules/ /etc/puppet/environments/production/modules/
+			if [ $? = 0 ]; then
+				echo "OK: /etc/puppet/environments/production/modules is now updated."
+			else
+				echo "ERROR: Updates  not moved to /etc/puppet/environments/production/modules."
+			fi
+		else    
+                        echo "NOTICE: Fix the the errors in the modules or move it away from puppet environment"
+                        echo "NOTICE: before attempting to sync the files."
+                fi 
+		;;
+		* )
+		echo "NOTICE: You need to push the changes TO the PRODUCTION environment."
+	esac
+
+else
+	echo "NOTICE: You need to be in one of the Puppet environments to run this: "
+	echo "/etc/puppet/environments/development OR /etc/puppet/environments/testing"
+	echo "You are here now: $PWD"
+fi
