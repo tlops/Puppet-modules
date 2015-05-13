@@ -1,0 +1,56 @@
+#!/bin/bash
+# This package will install and set the base configuration for the 
+# Elasticsearch, Logstash and kibana (ELK) packages on the client-
+# servers. The aim is to have a centralized log server on 
+# vbg-puppet-gui.int.prnw.net the configuration files will be served
+# by puppet.
+
+# ensuring Sudo priviledges
+if [ $EUID -ne 0 ]; then
+	echo "Warning: You need to be root to run this Script."
+        exit 1
+fi
+
+
+Installation () {
+	# create the Logstash Forwarder source list:
+	echo "creating the Logstash Forwarder source list..."
+	echo 'deb http://packages.elasticsearch.org/logstashforwarder/debian stable main' | sudo tee /etc/apt/sources.list.d/logstashforwarder.list
+	# Installing the gpg key for elasticsearch
+	echo "Installing the gpg key for elasticsearch..."
+	wget -O - http://packages.elasticsearch.org/GPG-KEY-elasticsearch | sudo apt-key add -
+	
+	if [[ $? -eq 0 ]]; then
+		echo "Updating the APT database..."
+		sudo apt-get update
+		echo "Installing the logstash-forwarder..."
+		sudo apt-get install logstash-forwarder
+		if [[  $? -ne 0 ]]; then
+			echo "ERROR: logstash-forwarder was not properly installed."
+		else 
+			echo "OK: logstash-forwarder has been installed!"
+			return 0
+		fi
+	else
+		echo "ERROR: There was problem while downloading the GPG-Key"
+		return 1
+	fi	
+}
+
+
+# The processes
+packagechk=`dpkg -s logstash-forwarder | head -n 2 | grep "Status"`
+if [[ $packagechk != "Status: install ok installed" ]]; then
+	# calling the installation function
+	Installation
+	if [[ $? -eq 0 ]]; then
+		# creating the directories for the cert:
+		sudo mkdir -p /etc/pki/tls/certs
+		echo "OK: /etc/pki/tls/certs created..."
+	else
+		echo "Warning: Something went wrong during installation"
+	fi
+
+else 
+	echo "OK: logstash-forwarder already installed."
+fi
