@@ -2,7 +2,7 @@
 # This package will install and set the base configuration for the 
 # Elasticsearch, Logstash and kibana (ELK) packages on the client-
 # servers. The aim is to have a centralized log server on 
-# vbg-puppet-gui.int.prnw.net the configuration files will be served
+# logstashserver.falade-ot.se the configuration files will be served
 # by puppet.
 
 # ensuring Sudo priviledges
